@@ -1,7 +1,74 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P2P Video Chat</title>
+<style>
+    #localVideo, #remoteVideo {
+        width: 45%;
+        height: auto;
+    }
+</style>
+</head>
+<body>
 
-<p>Test.</p>
-  
+<video id="localVideo" autoplay muted></video>
+<video id="remoteVideo" autoplay></video>
+
+<button id="startButton">Start</button>
+<button id="callButton">Call</button>
+
+<script>
+    const configuration = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' }
+        ]
+    };
+
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const startButton = document.getElementById('startButton');
+    const callButton = document.getElementById('callButton');
+
+    let localStream;
+    let remoteStream;
+    let peerConnection;
+
+    startButton.addEventListener('click', async () => {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
+    });
+
+    callButton.addEventListener('click', () => {
+        peerConnection = new RTCPeerConnection(configuration);
+
+        peerConnection.onicecandidate = event => {
+            // Handle ICE candidates
+            // You would send these to the other peer via your signaling server
+            console.log('ICE candidate:', event.candidate);
+        };
+
+        peerConnection.ontrack = event => {
+            // Set up the remote video stream
+            remoteStream = event.streams[0];
+            remoteVideo.srcObject = remoteStream;
+        };
+
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        // Create an offer and set it as the local description
+        // You would send this offer to the other peer via your signaling server
+        peerConnection.createOffer()
+            .then(offer => peerConnection.setLocalDescription(offer))
+            .then(() => {
+                // Send offer to remote peer
+                console.log('Offer:', peerConnection.localDescription);
+            });
+    });
+
+</script>
+</body>
 </html>
-
