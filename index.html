@@ -18,6 +18,9 @@
 
 <button id="startButton">Start</button>
 <button id="callButton">Call</button>
+<button id="answerButton">Answer</button>
+<textarea id="inputArea" placeholder="Paste offer/answer here"></textarea>
+<button id="sendButton">Send</button>
 
 <script>
     const configuration = {
@@ -30,9 +33,11 @@
     const remoteVideo = document.getElementById('remoteVideo');
     const startButton = document.getElementById('startButton');
     const callButton = document.getElementById('callButton');
+    const answerButton = document.getElementById('answerButton');
+    const inputArea = document.getElementById('inputArea');
+    const sendButton = document.getElementById('sendButton');
 
     let localStream;
-    let remoteStream;
     let peerConnection;
 
     startButton.addEventListener('click', async () => {
@@ -41,33 +46,64 @@
     });
 
     callButton.addEventListener('click', () => {
+        initiateCall();
+    });
+
+    answerButton.addEventListener('click', () => {
+        acceptCall();
+    });
+
+    sendButton.addEventListener('click', () => {
+        const message = JSON.parse(inputArea.value);
+        handleSignalingData(message);
+    });
+
+    async function initiateCall() {
         peerConnection = new RTCPeerConnection(configuration);
-
-        peerConnection.onicecandidate = event => {
-            // Handle ICE candidates
-            // You would send these to the other peer via your signaling server
-            console.log('ICE candidate:', event.candidate);
-        };
-
-        peerConnection.ontrack = event => {
-            // Set up the remote video stream
-            remoteStream = event.streams[0];
-            remoteVideo.srcObject = remoteStream;
-        };
-
+        setupPeerConnection();
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        inputArea.value = JSON.stringify({ "offer": offer });
+    }
 
-        // Create an offer and set it as the local description
-        // You would send this offer to the other peer via your signaling server
-        peerConnection.createOffer()
-            .then(offer => peerConnection.setLocalDescription(offer))
-            .then(() => {
-                // Send offer to remote peer
-                console.log('Offer:', peerConnection.localDescription);
-            });
-    });
+    async function acceptCall() {
+        const offer = JSON.parse(inputArea.value).offer;
+        if (!offer) return alert('Invalid offer');
+        peerConnection = new RTCPeerConnection(configuration);
+        setupPeerConnection();
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+        await peerConnection.setRemoteDescription(offer);
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        inputArea.value = JSON.stringify({ "answer": answer });
+    }
+
+    function handleSignalingData(data) {
+        const { answer, candidate } = data;
+        if (answer) {
+            const remoteAnswer = new RTCSessionDescription(answer);
+            peerConnection.setRemoteDescription(remoteAnswer);
+        } else if (candidate) {
+            const iceCandidate = new RTCIceCandidate(candidate);
+            peerConnection.addIceCandidate(iceCandidate);
+        }
+    }
+
+    function setupPeerConnection() {
+        peerConnection.onicecandidate = event => {
+            if (event.candidate) {
+                inputArea.value = JSON.stringify({ "candidate": event.candidate });
+            }
+        };
+        peerConnection.ontrack = event => {
+            remoteVideo.srcObject = event.streams[0];
+        };
+    }
 
 </script>
 </body>
